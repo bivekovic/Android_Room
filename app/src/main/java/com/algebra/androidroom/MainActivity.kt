@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.room.Room
 import com.algebra.androidroom.db.AppDatabase
+import com.algebra.androidroom.db.AppExecutors
 import com.algebra.androidroom.model.ToDo
 import com.algebra.androidroom.ui.ToDosAdapter
 import com.algebra.androidroom.ui.Wiper
@@ -30,19 +31,11 @@ class MainActivity : AppCompatActivity( ) {
         super.onCreate( savedInstanceState )
         setContentView( R.layout.activity_main )
 
-        Log.i( TAG, "onCreate: Prije kreiranja baze" )
-
         db = AppDatabase( this )
-
-        Log.i( TAG, "onCreate: Nakon kreiranja baze" )
-
         setupRecyclerView( )
-
-        Log.i( TAG, "onCreate: Postavljen RecyclerView" )
-
         setupListeners( )
 
-        Log.i( TAG, "onCreate: Postavljeni Listeneri" )
+        observeDatabaseChanges( )
     }
 
     private fun setupListeners( ) {
@@ -67,43 +60,58 @@ class MainActivity : AppCompatActivity( ) {
 
     private fun setupRecyclerView( ) {
         rvTodos.layoutManager = LinearLayoutManager( this )
-        Log.i( TAG, "setupRecyclerView: Postavljen Layout Manager" )
         adapter = ToDosAdapter( object : Wiper {
             override fun delete( todo: ToDo ) {
                 this@MainActivity.delete( todo.id!! )
             }
         } )
-        Log.i( TAG, "setupRecyclerView: Kreiran Adapter" )
         rvTodos.adapter = adapter
-        Log.i( TAG, "setupRecyclerView: Postavljen Adapter" )
-        val t = Thread {
+
+        /*
+        AppExecutors.instance?.diskIO( )?.execute {
             adapter.todos = db.toDoDao( ).getAll( )
-            Log.i( TAG, "setupRecyclerView.NewThread: Dohvat podataka uspješno završio" )
         }
-        t.start( )
-        Log.i( TAG, "setupRecyclerView: RecyclerView postavljen" )
+         */
     }
 
     fun delete( id : Int ) {
-        Thread {
+        AppExecutors.instance?.diskIO( )?.execute {
+            db.toDoDao( ).delete( ToDo( id, null, null ) )
+        }
+        /*
+        //Thread {
+        AppExecutors.instance?.diskIO( )?.execute {
+            Log.i( TAG, "delete: Brisem jedan ToDo" )
             val dao = db.toDoDao( )
             dao.delete( ToDo( id, null, null ) )
             val novaLista = db.toDoDao( ).getAll( )
             runOnUiThread {
                 adapter.todos = novaLista
             }
-        }.start( )
+            Log.i( TAG, "delete: ToDo jedan obrisan" )
+        }
+        //}.start( )
+         */
     }
 
     private fun insertTodo( title : String, desc : String ) {
-        Thread {
+        AppExecutors.instance?.diskIO( )?.execute {
+            db.toDoDao( ).insertAll( ToDo( null, title, desc ) )
+        }
+        /*
+        AppExecutors.instance?.diskIO( )?.execute {
+        //Thread {
+            Log.i( TAG, "insertTodo: Upisujem novi ToDo" )
             val dao = db.toDoDao( )
             dao.insertAll( ToDo( null, title, desc ) )
             val novaLista = db.toDoDao( ).getAll( )
             runOnUiThread {
                 adapter.todos = novaLista
             }
-        }.start( )
+            Log.i( TAG, "insertTodo: Novi ToDo upisan" )
+        }
+        //}.start( )
+        */
     }
 
 
@@ -131,11 +139,30 @@ class MainActivity : AppCompatActivity( ) {
         return true
     }
 
-    override fun onOptionsItemSelected(item: MenuItem) : Boolean {
+    override fun onOptionsItemSelected( item: MenuItem ) : Boolean {
         if( item.itemId==R.id.brisiSve ) {
-            db.toDoDao( ).deleteAll( )
-            adapter.todos = db.toDoDao( ).getAll( )
+            AppExecutors.instance?.diskIO( )?.execute {
+                db.toDoDao( ).deleteAll( )
+            }
+            /*
+            AppExecutors.instance?.diskIO( )?.execute {
+            //Thread {
+                Log.i( TAG, "onOptionsItemSelected: Brišem sve ToDo-ove" )
+                val dao = db.toDoDao( )
+                dao.deleteAll( )
+                val novaLista = db.toDoDao( ).getAll( )
+                runOnUiThread {
+                    adapter.todos = novaLista
+                }
+                Log.i( TAG, "onOptionsItemSelected: Svi ToDo-ovi obrisani" )
+            //}.start( )
+            }
+            */
         }
         return true
+    }
+
+    private fun observeDatabaseChanges( ) {
+        db.toDoDao( ).getAll( ).observe( this, { adapter.todos = it } )
     }
 }
