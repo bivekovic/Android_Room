@@ -30,15 +30,19 @@ class MainActivity : AppCompatActivity( ) {
         super.onCreate( savedInstanceState )
         setContentView( R.layout.activity_main )
 
-        db = Room
-                .databaseBuilder( applicationContext, AppDatabase::class.java, "todos.db" )
-                .allowMainThreadQueries( )
-                .build( )
+        Log.i( TAG, "onCreate: Prije kreiranja baze" )
 
-        Log.i( TAG, this.toString( ) )
+        db = AppDatabase( this )
+
+        Log.i( TAG, "onCreate: Nakon kreiranja baze" )
 
         setupRecyclerView( )
+
+        Log.i( TAG, "onCreate: Postavljen RecyclerView" )
+
         setupListeners( )
+
+        Log.i( TAG, "onCreate: Postavljeni Listeneri" )
     }
 
     private fun setupListeners( ) {
@@ -63,23 +67,43 @@ class MainActivity : AppCompatActivity( ) {
 
     private fun setupRecyclerView( ) {
         rvTodos.layoutManager = LinearLayoutManager( this )
+        Log.i( TAG, "setupRecyclerView: Postavljen Layout Manager" )
         adapter = ToDosAdapter( object : Wiper {
             override fun delete( todo: ToDo ) {
                 this@MainActivity.delete( todo.id!! )
             }
         } )
+        Log.i( TAG, "setupRecyclerView: Kreiran Adapter" )
         rvTodos.adapter = adapter
-        adapter.todos = db.toDoDao( ).getAll( )
+        Log.i( TAG, "setupRecyclerView: Postavljen Adapter" )
+        val t = Thread {
+            adapter.todos = db.toDoDao( ).getAll( )
+            Log.i( TAG, "setupRecyclerView.NewThread: Dohvat podataka uspješno završio" )
+        }
+        t.start( )
+        Log.i( TAG, "setupRecyclerView: RecyclerView postavljen" )
     }
 
     fun delete( id : Int ) {
-        db.toDoDao( ).delete( ToDo( id, null, null ) )
-        adapter.todos = db.toDoDao( ).getAll( )
+        Thread {
+            val dao = db.toDoDao( )
+            dao.delete( ToDo( id, null, null ) )
+            val novaLista = db.toDoDao( ).getAll( )
+            runOnUiThread {
+                adapter.todos = novaLista
+            }
+        }.start( )
     }
 
     private fun insertTodo( title : String, desc : String ) {
-        db.toDoDao( ).insertAll( ToDo( null, title, desc ) )
-        adapter.todos = db.toDoDao( ).getAll( )
+        Thread {
+            val dao = db.toDoDao( )
+            dao.insertAll( ToDo( null, title, desc ) )
+            val novaLista = db.toDoDao( ).getAll( )
+            runOnUiThread {
+                adapter.todos = novaLista
+            }
+        }.start( )
     }
 
 
